@@ -17,6 +17,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import nltk
+
 nltk.download('punkt')
 
 
@@ -33,12 +34,13 @@ def pad_sents(sents, pad_token):
     sents_padded = []
 
     ### YOUR CODE HERE (~6 Lines)
+    max_len_sent = max(sents, key=lambda x: len(x))
+    max_len = len(max_len_sent)
 
-
-
+    sents_padded = map(lambda sent: sent + [pad_token] * (max_len - len(sent)), sents)
     ### END YOUR CODE
 
-    return sents_padded
+    return list(sents_padded)
 
 
 def read_corpus(file_path, source):
@@ -80,3 +82,6 @@ def batch_iter(data, batch_size, shuffle=False):
 
         yield src_sents, tgt_sents
 
+
+if __name__ == '__main__':
+    print(pad_sents([[1, 2, 3, 4, 1, 2], [1, 2, 4, 2, 3], [1]], 0))
