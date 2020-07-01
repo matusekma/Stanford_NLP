@@ -81,7 +81,3 @@ def batch_iter(data, batch_size, shuffle=False):
         tgt_sents = [e[1] for e in examples]
 
         yield src_sents, tgt_sents
-
-
-if __name__ == '__main__':
-    print(pad_sents([[1, 2, 3, 4, 1, 2], [1, 2, 4, 2, 3], [1]], 0))
