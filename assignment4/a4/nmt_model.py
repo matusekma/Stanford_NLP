@@ -174,9 +174,18 @@ class NMT(nn.Module):
         #         https://pytorch.org/docs/stable/torch.html#torch.cat
         #     Tensor Permute:
         #         https://pytorch.org/docs/stable/tensors.html#torch.Tensor.permute
+        X = self.model_embeddings.source(source_padded)
+        X_packed = pack_padded_sequence(X, source_lengths)
+        enc_hiddens, (last_hidden, last_cell) = self.encoder(X_packed)
+        enc_hiddens, enc_hiddens_lens = pad_packed_sequence(enc_hiddens, batch_first=True)
 
+        last_hidden_cat = torch.cat((last_hidden[0], last_hidden[1]), dim=1)
+        init_decoder_hidden = self.h_projection(last_hidden_cat)
 
+        last_cell_cat = torch.cat((last_cell[0], last_cell[1]), dim=1)
+        init_decoder_cell = self.c_projection(last_cell_cat)
 
+        dec_init_state = (init_decoder_hidden, init_decoder_cell)
         ### END YOUR CODE
 
         return enc_hiddens, dec_init_state
@@ -210,47 +219,51 @@ class NMT(nn.Module):
         # Initialize a list we will use to collect the combined output o_t on each step
         combined_outputs = []
 
-        ### YOUR CODE HERE (~9 Lines)
-        ### TODO:
-        ###     1. Apply the attention projection layer to `enc_hiddens` to obtain `enc_hiddens_proj`,
-        ###         which should be shape (b, src_len, h),
-        ###         where b = batch size, src_len = maximum source length, h = hidden size.
-        ###         This is applying W_{attProj} to h^enc, as described in the PDF.
-        ###     2. Construct tensor `Y` of target sentences with shape (tgt_len, b, e) using the target model embeddings.
-        ###         where tgt_len = maximum target sentence length, b = batch size, e = embedding size.
-        ###     3. Use the torch.split function to iterate over the time dimension of Y.
-        ###         Within the loop, this will give you Y_t of shape (1, b, e) where b = batch size, e = embedding size.
-        ###             - Squeeze Y_t into a tensor of dimension (b, e). 
-        ###             - Construct Ybar_t by concatenating Y_t with o_prev on their last dimension
-        ###             - Use the step function to compute the the Decoder's next (cell, state) values
-        ###               as well as the new combined output o_t.
-        ###             - Append o_t to combined_outputs
-        ###             - Update o_prev to the new o_t.
-        ###     4. Use torch.stack to convert combined_outputs from a list length tgt_len of
-        ###         tensors shape (b, h), to a single tensor shape (tgt_len, b, h)
-        ###         where tgt_len = maximum target sentence length, b = batch size, h = hidden size.
-        ###
-        ### Note:
-        ###    - When using the squeeze() function make sure to specify the dimension you want to squeeze
-        ###      over. Otherwise, you will remove the batch dimension accidentally, if batch_size = 1.
-        ###   
-        ### You may find some of these functions useful:
-        ###     Zeros Tensor:
-        ###         https://pytorch.org/docs/stable/torch.html#torch.zeros
-        ###     Tensor Splitting (iteration):
-        ###         https://pytorch.org/docs/stable/torch.html#torch.split
-        ###     Tensor Dimension Squeezing:
-        ###         https://pytorch.org/docs/stable/torch.html#torch.squeeze
-        ###     Tensor Concatenation:
-        ###         https://pytorch.org/docs/stable/torch.html#torch.cat
-        ###     Tensor Stacking:
-        ###         https://pytorch.org/docs/stable/torch.html#torch.stack
+        # YOUR CODE HERE (~9 Lines)
+        # TODO:
+        #     1. Apply the attention projection layer to `enc_hiddens` to obtain `enc_hiddens_proj`,
+        #         which should be shape (b, src_len, h),
+        #         where b = batch size, src_len = maximum source length, h = hidden size.
+        #         This is applying W_{attProj} to h^enc, as described in the PDF.
+        #     2. Construct tensor `Y` of target sentences with shape (tgt_len, b, e) using the target model embeddings.
+        #         where tgt_len = maximum target sentence length, b = batch size, e = embedding size.
+        #     3. Use the torch.split function to iterate over the time dimension of Y.
+        #         Within the loop, this will give you Y_t of shape (1, b, e) where b = batch size, e = embedding size.
+        #             - Squeeze Y_t into a tensor of dimension (b, e).
+        #             - Construct Ybar_t by concatenating Y_t with o_prev on their last dimension
+        #             - Use the step function to compute the the Decoder's next (cell, state) values
+        #               as well as the new combined output o_t.
+        #             - Append o_t to combined_outputs
+        #             - Update o_prev to the new o_t.
+        #     4. Use torch.stack to convert combined_outputs from a list length tgt_len of
+        #         tensors shape (b, h), to a single tensor shape (tgt_len, b, h)
+        #         where tgt_len = maximum target sentence length, b = batch size, h = hidden size.
+        #
+        # Note:
+        #    - When using the squeeze() function make sure to specify the dimension you want to squeeze
+        #      over. Otherwise, you will remove the batch dimension accidentally, if batch_size = 1.
+        #
+        # You may find some of these functions useful:
+        #     Zeros Tensor:
+        #         https://pytorch.org/docs/stable/torch.html#torch.zeros
+        #     Tensor Splitting (iteration):
+        #         https://pytorch.org/docs/stable/torch.html#torch.split
+        #     Tensor Dimension Squeezing:
+        #         https://pytorch.org/docs/stable/torch.html#torch.squeeze
+        #     Tensor Concatenation:
+        #         https://pytorch.org/docs/stable/torch.html#torch.cat
+        #     Tensor Stacking:
+        #         https://pytorch.org/docs/stable/torch.html#torch.stack
+        enc_hiddens_proj = self.att_projection(enc_hiddens)
+        Y = self.model_embeddings.target(target_padded)
+        for Y_t in torch.split(Y, 1, 0):
+            Y_t = torch.squeeze(Y_t, dim=0)
+            Ybar_t = torch.cat((Y_t, o_prev), dim=1)
+            dec_state, o_t, _ = self.step(Ybar_t, dec_state, enc_hiddens, enc_hiddens_proj, enc_masks)
+            combined_outputs.append(o_t)
+            o_prev = o_t
 
-
-
-
-
-
+        combined_outputs = torch.stack(combined_outputs, dim=0)
         ### END YOUR CODE
 
         return combined_outputs
@@ -285,29 +298,28 @@ class NMT(nn.Module):
 
         combined_output = None
 
-        ### YOUR CODE HERE (~3 Lines)
-        ### TODO:
-        ###     1. Apply the decoder to `Ybar_t` and `dec_state`to obtain the new dec_state.
-        ###     2. Split dec_state into its two parts (dec_hidden, dec_cell)
-        ###     3. Compute the attention scores e_t, a Tensor shape (b, src_len). 
-        ###        Note: b = batch_size, src_len = maximum source length, h = hidden size.
-        ###
-        ###       Hints:
-        ###         - dec_hidden is shape (b, h) and corresponds to h^dec_t in the PDF (batched)
-        ###         - enc_hiddens_proj is shape (b, src_len, h) and corresponds to W_{attProj} h^enc (batched).
-        ###         - Use batched matrix multiplication (torch.bmm) to compute e_t (be careful about the input/ output shapes!)
-        ###         - To get the tensors into the right shapes for bmm, you will need to do some squeezing and unsqueezing.
-        ###         - When using the squeeze() function make sure to specify the dimension you want to squeeze
-        ###             over. Otherwise, you will remove the batch dimension accidentally, if batch_size = 1.
-        ###
-        ### Use the following docs to implement this functionality:
-        ###     Batch Multiplication:
-        ###        https://pytorch.org/docs/stable/torch.html#torch.bmm
-        ###     Tensor Unsqueeze:
-        ###         https://pytorch.org/docs/stable/torch.html#torch.unsqueeze
-        ###     Tensor Squeeze:
-        ###         https://pytorch.org/docs/stable/torch.html#torch.squeeze
-
+        # YOUR CODE HERE (~3 Lines)
+        # TODO:
+        #     1. Apply the decoder to `Ybar_t` and `dec_state`to obtain the new dec_state.
+        #     2. Split dec_state into its two parts (dec_hidden, dec_cell)
+        #     3. Compute the attention scores e_t, a Tensor shape (b, src_len).
+        #        Note: b = batch_size, src_len = maximum source length, h = hidden size.
+        #
+        #       Hints:
+        #         - dec_hidden is shape (b, h) and corresponds to h^dec_t in the PDF (batched)
+        #         - enc_hiddens_proj is shape (b, src_len, h) and corresponds to W_{attProj} h^enc (batched).
+        #         - Use batched matrix multiplication (torch.bmm) to compute e_t (be careful about the input/ output shapes!)
+        #         - To get the tensors into the right shapes for bmm, you will need to do some squeezing and unsqueezing.
+        #         - When using the squeeze() function make sure to specify the dimension you want to squeeze
+        #             over. Otherwise, you will remove the batch dimension accidentally, if batch_size = 1.
+        #
+        # Use the following docs to implement this functionality:
+        #     Batch Multiplication:
+        #        https://pytorch.org/docs/stable/torch.html#torch.bmm
+        #     Tensor Unsqueeze:
+        #         https://pytorch.org/docs/stable/torch.html#torch.unsqueeze
+        #     Tensor Squeeze:
+        #         https://pytorch.org/docs/stable/torch.html#torch.squeeze
 
         ### END YOUR CODE
 
@@ -315,32 +327,32 @@ class NMT(nn.Module):
         if enc_masks is not None:
             e_t.data.masked_fill_(enc_masks.bool(), -float('inf'))
 
-        ### YOUR CODE HERE (~6 Lines)
-        ### TODO:
-        ###     1. Apply softmax to e_t to yield alpha_t
-        ###     2. Use batched matrix multiplication between alpha_t and enc_hiddens to obtain the
-        ###         attention output vector, a_t.
-        ###           - alpha_t is shape (b, src_len)
-        ###           - enc_hiddens is shape (b, src_len, 2h)
-        ###           - a_t should be shape (b, 2h)
-        ###           - You will need to do some squeezing and unsqueezing.
-        ###     Note: b = batch size, src_len = maximum source length, h = hidden size.
-        ###
-        ###     3. Concatenate dec_hidden with a_t to compute tensor U_t
-        ###     4. Apply the combined output projection layer to U_t to compute tensor V_t
-        ###     5. Compute tensor O_t by first applying the Tanh function and then the dropout layer.
-        ###
-        ### Use the following docs to implement this functionality:
-        ###     Softmax:
-        ###         https://pytorch.org/docs/stable/nn.html#torch.nn.functional.softmax
-        ###     Batch Multiplication:
-        ###        https://pytorch.org/docs/stable/torch.html#torch.bmm
-        ###     Tensor View:
-        ###         https://pytorch.org/docs/stable/tensors.html#torch.Tensor.view
-        ###     Tensor Concatenation:
-        ###         https://pytorch.org/docs/stable/torch.html#torch.cat
-        ###     Tanh:
-        ###         https://pytorch.org/docs/stable/torch.html#torch.tanh
+        # YOUR CODE HERE (~6 Lines)
+        # TODO:
+        #     1. Apply softmax to e_t to yield alpha_t
+        #     2. Use batched matrix multiplication between alpha_t and enc_hiddens to obtain the
+        #         attention output vector, a_t.
+        #           - alpha_t is shape (b, src_len)
+        #           - enc_hiddens is shape (b, src_len, 2h)
+        #           - a_t should be shape (b, 2h)
+        #           - You will need to do some squeezing and unsqueezing.
+        #     Note: b = batch size, src_len = maximum source length, h = hidden size.
+        #
+        #     3. Concatenate dec_hidden with a_t to compute tensor U_t
+        #     4. Apply the combined output projection layer to U_t to compute tensor V_t
+        #     5. Compute tensor O_t by first applying the Tanh function and then the dropout layer.
+        #
+        # Use the following docs to implement this functionality:
+        #     Softmax:
+        #         https://pytorch.org/docs/stable/nn.html#torch.nn.functional.softmax
+        #     Batch Multiplication:
+        #        https://pytorch.org/docs/stable/torch.html#torch.bmm
+        #     Tensor View:
+        #         https://pytorch.org/docs/stable/tensors.html#torch.Tensor.view
+        #     Tensor Concatenation:
+        #         https://pytorch.org/docs/stable/torch.html#torch.cat
+        #     Tanh:
+        #         https://pytorch.org/docs/stable/torch.html#torch.tanh
 
 
         ### END YOUR CODE
