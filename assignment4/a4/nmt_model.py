@@ -76,7 +76,7 @@ class NMT(nn.Module):
         #         https://pytorch.org/docs/stable/nn.html#torch.nn.Linear
         #     Dropout Layer:
         #         https://pytorch.org/docs/stable/nn.html#torch.nn.Dropout
-        self.encoder = nn.LSTM(embed_size, hidden_size, bias=True)
+        self.encoder = nn.LSTM(embed_size, hidden_size, bias=True, bidirectional=True)
         self.decoder = nn.LSTM(embed_size, hidden_size, bias=True)
         self.h_projection = nn.Linear(2 * hidden_size, hidden_size, bias=False)
         self.c_projection = nn.Linear(2 * hidden_size, hidden_size, bias=False)
@@ -141,38 +141,39 @@ class NMT(nn.Module):
         """
         enc_hiddens, dec_init_state = None, None
 
-        ### YOUR CODE HERE (~ 8 Lines)
-        ### TODO:
-        ###     1. Construct Tensor `X` of source sentences with shape (src_len, b, e) using the source model embeddings.
-        ###         src_len = maximum source sentence length, b = batch size, e = embedding size. Note
-        ###         that there is no initial hidden state or cell for the decoder.
-        ###     2. Compute `enc_hiddens`, `last_hidden`, `last_cell` by applying the encoder to `X`.
-        ###         - Before you can apply the encoder, you need to apply the `pack_padded_sequence` function to X.
-        ###         - After you apply the encoder, you need to apply the `pad_packed_sequence` function to enc_hiddens.
-        ###         - Note that the shape of the tensor returned by the encoder is (src_len, b, h*2) and we want to
-        ###           return a tensor of shape (b, src_len, h*2) as `enc_hiddens`.
-        ###     3. Compute `dec_init_state` = (init_decoder_hidden, init_decoder_cell):
-        ###         - `init_decoder_hidden`:
-        ###             `last_hidden` is a tensor shape (2, b, h). The first dimension corresponds to forwards and backwards.
-        ###             Concatenate the forwards and backwards tensors to obtain a tensor shape (b, 2*h).
-        ###             Apply the h_projection layer to this in order to compute init_decoder_hidden.
-        ###             This is h_0^{dec} in the PDF. Here b = batch size, h = hidden size
-        ###         - `init_decoder_cell`:
-        ###             `last_cell` is a tensor shape (2, b, h). The first dimension corresponds to forwards and backwards.
-        ###             Concatenate the forwards and backwards tensors to obtain a tensor shape (b, 2*h).
-        ###             Apply the c_projection layer to this in order to compute init_decoder_cell.
-        ###             This is c_0^{dec} in the PDF. Here b = batch size, h = hidden size
-        ###
-        ### See the following docs, as you may need to use some of the following functions in your implementation:
-        ###     Pack the padded sequence X before passing to the encoder:
-        ###         https://pytorch.org/docs/stable/nn.html#torch.nn.utils.rnn.pack_padded_sequence
-        ###     Pad the packed sequence, enc_hiddens, returned by the encoder:
-        ###         https://pytorch.org/docs/stable/nn.html#torch.nn.utils.rnn.pad_packed_sequence
-        ###     Tensor Concatenation:
-        ###         https://pytorch.org/docs/stable/torch.html#torch.cat
-        ###     Tensor Permute:
-        ###         https://pytorch.org/docs/stable/tensors.html#torch.Tensor.permute
-
+        # YOUR CODE HERE (~ 8 Lines)
+        # TODO:
+        #     1. Construct Tensor `X` of source sentences with shape (src_len, b, e) using the source model embeddings.
+        #         src_len = maximum source sentence length, b = batch size, e = embedding size. Note
+        #         that there is no initial hidden state or cell for the decoder.
+        #     2. Compute `enc_hiddens`, `last_hidden`, `last_cell` by applying the encoder to `X`.
+        #         - Before you can apply the encoder, you need to apply the `pack_padded_sequence` function to X.
+        #         - After you apply the encoder, you need to apply the `pad_packed_sequence` function to enc_hiddens.
+        #         - Note that the shape of the tensor returned by the encoder is (src_len, b, h*2) and we want to
+        #           return a tensor of shape (b, src_len, h*2) as `enc_hiddens`.
+        #     3. Compute `dec_init_state` = (init_decoder_hidden, init_decoder_cell):
+        #         - `init_decoder_hidden`:
+        #             `last_hidden` is a tensor shape (2, b, h). The first dimension corresponds to forwards and
+        #             backwards.
+        #             Concatenate the forwards and backwards tensors to obtain a tensor shape (b, 2*h).
+        #             Apply the h_projection layer to this in order to compute init_decoder_hidden.
+        #             This is h_0^{dec} in the PDF. Here b = batch size, h = hidden size
+        #         - `init_decoder_cell`:
+        #             `last_cell` is a tensor shape (2, b, h). The first dimension corresponds to forwards and
+        #             backwards.
+        #             Concatenate the forwards and backwards tensors to obtain a tensor shape (b, 2*h).
+        #             Apply the c_projection layer to this in order to compute init_decoder_cell.
+        #             This is c_0^{dec} in the PDF. Here b = batch size, h = hidden size
+        #
+        # See the following docs, as you may need to use some of the following functions in your implementation:
+        #     Pack the padded sequence X before passing to the encoder:
+        #         https://pytorch.org/docs/stable/nn.html#torch.nn.utils.rnn.pack_padded_sequence
+        #     Pad the packed sequence, enc_hiddens, returned by the encoder:
+        #         https://pytorch.org/docs/stable/nn.html#torch.nn.utils.rnn.pad_packed_sequence
+        #     Tensor Concatenation:
+        #         https://pytorch.org/docs/stable/torch.html#torch.cat
+        #     Tensor Permute:
+        #         https://pytorch.org/docs/stable/tensors.html#torch.Tensor.permute
 
 
 
