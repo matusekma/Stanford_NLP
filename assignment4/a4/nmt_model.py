@@ -56,29 +56,34 @@ class NMT(nn.Module):
         self.counter = 0
 
 
-        ### YOUR CODE HERE (~8 Lines)
-        ### TODO - Initialize the following variables:
-        ###     self.encoder (Bidirectional LSTM with bias)
-        ###     self.decoder (LSTM Cell with bias)
-        ###     self.h_projection (Linear Layer with no bias), called W_{h} in the PDF.
-        ###     self.c_projection (Linear Layer with no bias), called W_{c} in the PDF.
-        ###     self.att_projection (Linear Layer with no bias), called W_{attProj} in the PDF.
-        ###     self.combined_output_projection (Linear Layer with no bias), called W_{u} in the PDF.
-        ###     self.target_vocab_projection (Linear Layer with no bias), called W_{vocab} in the PDF.
-        ###     self.dropout (Dropout Layer)
-        ###
-        ### Use the following docs to properly initialize these variables:
-        ###     LSTM:
-        ###         https://pytorch.org/docs/stable/nn.html#torch.nn.LSTM
-        ###     LSTM Cell:
-        ###         https://pytorch.org/docs/stable/nn.html#torch.nn.LSTMCell
-        ###     Linear Layer:
-        ###         https://pytorch.org/docs/stable/nn.html#torch.nn.Linear
-        ###     Dropout Layer:
-        ###         https://pytorch.org/docs/stable/nn.html#torch.nn.Dropout
-
-
-
+        # YOUR CODE HERE (~8 Lines)
+        # TODO_done - Initialize the following variables:
+        #     self.encoder (Bidirectional LSTM with bias)
+        #     self.decoder (LSTM Cell with bias)
+        #     self.h_projection (Linear Layer with no bias), called W_{h} in the PDF.
+        #     self.c_projection (Linear Layer with no bias), called W_{c} in the PDF.
+        #     self.att_projection (Linear Layer with no bias), called W_{attProj} in the PDF.
+        #     self.combined_output_projection (Linear Layer with no bias), called W_{u} in the PDF.
+        #     self.target_vocab_projection (Linear Layer with no bias), called W_{vocab} in the PDF.
+        #     self.dropout (Dropout Layer)
+        #
+        # Use the following docs to properly initialize these variables:
+        #     LSTM:
+        #         https://pytorch.org/docs/stable/nn.html#torch.nn.LSTM
+        #     LSTM Cell:
+        #         https://pytorch.org/docs/stable/nn.html#torch.nn.LSTMCell
+        #     Linear Layer:
+        #         https://pytorch.org/docs/stable/nn.html#torch.nn.Linear
+        #     Dropout Layer:
+        #         https://pytorch.org/docs/stable/nn.html#torch.nn.Dropout
+        self.encoder = nn.LSTM(embed_size, hidden_size, bias=True)
+        self.decoder = nn.LSTM(embed_size, hidden_size, bias=True)
+        self.h_projection = nn.Linear(2 * hidden_size, hidden_size, bias=False)
+        self.c_projection = nn.Linear(2 * hidden_size, hidden_size, bias=False)
+        self.att_projection = nn.Linear(2 * hidden_size, hidden_size, bias=False)
+        self.combined_output_projection = nn.Linear(3 * hidden_size, hidden_size, bias=False)
+        self.target_vocab_projection = nn.Linear(hidden_size, len(vocab.tgt), bias=False)
+        self.dropout = nn.Dropout(dropout_rate)
         ### END YOUR CODE
 
 
