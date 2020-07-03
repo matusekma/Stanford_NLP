@@ -77,7 +77,7 @@ class NMT(nn.Module):
         #     Dropout Layer:
         #         https://pytorch.org/docs/stable/nn.html#torch.nn.Dropout
         self.encoder = nn.LSTM(embed_size, hidden_size, bias=True, bidirectional=True)
-        self.decoder = nn.LSTM(embed_size, hidden_size, bias=True)
+        self.decoder = nn.LSTM(embed_size + hidden_size, hidden_size, bias=True)
         self.h_projection = nn.Linear(2 * hidden_size, hidden_size, bias=False)
         self.c_projection = nn.Linear(2 * hidden_size, hidden_size, bias=False)
         self.att_projection = nn.Linear(2 * hidden_size, hidden_size, bias=False)
@@ -320,7 +320,13 @@ class NMT(nn.Module):
         #         https://pytorch.org/docs/stable/torch.html#torch.unsqueeze
         #     Tensor Squeeze:
         #         https://pytorch.org/docs/stable/torch.html#torch.squeeze
-
+        # Ybar_t, dec_state, enc_hiddens, enc_hiddens_proj, enc_masks
+        Ybar_t = torch.unsqueeze(Ybar_t, dim=0)
+        dec_hidden_t_1 = torch.unsqueeze(dec_state[0], dim=0)
+        dec_cell_t_1 = torch.unsqueeze(dec_state[1], dim=0)
+        output, (dec_hidden, dec_cell) = self.decoder(Ybar_t, (dec_hidden_t_1, dec_cell_t_1))
+        dec_hidden = torch.unsqueeze(torch.squeeze(dec_hidden, dim=0), dim=2)
+        e_t = torch.squeeze(torch.bmm(enc_hiddens_proj, dec_hidden), dim=2)
         ### END YOUR CODE
 
         # Set e_t to -inf where enc_masks has 1
@@ -353,8 +359,14 @@ class NMT(nn.Module):
         #         https://pytorch.org/docs/stable/torch.html#torch.cat
         #     Tanh:
         #         https://pytorch.org/docs/stable/torch.html#torch.tanh
-
-
+        alpha_t = F.softmax(e_t, dim=1)
+        a_t = torch.squeeze(torch.bmm(torch.unsqueeze(alpha_t, dim=1), enc_hiddens), dim=1)
+        dec_hidden = torch.squeeze(dec_hidden, dim=2)
+        dec_cell = torch.squeeze(dec_cell, dim=0)
+        dec_state = (dec_hidden, dec_cell)
+        U_t = torch.cat((a_t, dec_hidden), dim=1)
+        V_t = self.combined_output_projection(U_t)
+        O_t = self.dropout(torch.tanh(V_t))
         ### END YOUR CODE
 
         combined_output = O_t
